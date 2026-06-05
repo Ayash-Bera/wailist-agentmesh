@@ -22,7 +22,16 @@ type Deps struct {
 }
 
 // Stub handlers — replaced one by one as tasks complete
-func (d *Deps) TriggerRun(w http.ResponseWriter, r *http.Request)    { w.WriteHeader(501) }
+func (d *Deps) SignUp(w http.ResponseWriter, r *http.Request)         { w.WriteHeader(501) }
+func (d *Deps) SignIn(w http.ResponseWriter, r *http.Request)         { w.WriteHeader(501) }
+func (d *Deps) SignOut(w http.ResponseWriter, r *http.Request)        { w.WriteHeader(501) }
+func (d *Deps) Me(w http.ResponseWriter, r *http.Request)             { w.WriteHeader(501) }
+func (d *Deps) ListWorkflows(w http.ResponseWriter, r *http.Request)  { w.WriteHeader(501) }
+func (d *Deps) CreateWorkflow(w http.ResponseWriter, r *http.Request) { w.WriteHeader(501) }
+func (d *Deps) GetWorkflow(w http.ResponseWriter, r *http.Request)    { w.WriteHeader(501) }
+func (d *Deps) UpdateWorkflow(w http.ResponseWriter, r *http.Request) { w.WriteHeader(501) }
+func (d *Deps) DeleteWorkflow(w http.ResponseWriter, r *http.Request) { w.WriteHeader(501) }
+func (d *Deps) TriggerRun(w http.ResponseWriter, r *http.Request)     { w.WriteHeader(501) }
 func (d *Deps) StopWorkflow(w http.ResponseWriter, r *http.Request)  { w.WriteHeader(501) }
 func (d *Deps) GetRun(w http.ResponseWriter, r *http.Request)        { w.WriteHeader(501) }
 func (d *Deps) StreamRun(w http.ResponseWriter, r *http.Request)     { w.WriteHeader(501) }
