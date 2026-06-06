@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +14,9 @@ import (
 	"github.com/agentmesh/backend/internal/models"
 	"github.com/agentmesh/backend/internal/respond"
 )
+
+// dummyHash is used in SignIn to keep response time constant even when the email doesn't exist.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password-agentmesh"), bcrypt.DefaultCost)
 
 const tokenTTL = 7 * 24 * time.Hour
 
@@ -51,7 +56,8 @@ func (d *Deps) SignUp(w http.ResponseWriter, r *http.Request) {
 			respond.Error(w, http.StatusConflict, "email already registered")
 			return
 		}
-		respond.Error(w, http.StatusInternalServerError, err.Error())
+		log.Printf("create user: %v", err)
+		respond.Error(w, http.StatusInternalServerError, "internal error")
 		return
 	}
 
@@ -76,13 +82,12 @@ func (d *Deps) SignIn(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := d.Store.GetUserByEmail(r.Context(), body.Email)
-	if err != nil {
-		respond.Error(w, http.StatusUnauthorized, "invalid credentials")
-		return
+	user, lookupErr := d.Store.GetUserByEmail(r.Context(), body.Email)
+	hash := []byte(user.PasswordHash)
+	if lookupErr != nil {
+		hash = dummyHash
 	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(body.Password)); err != nil {
+	if bcrypt.CompareHashAndPassword(hash, []byte(body.Password)) != nil || lookupErr != nil {
 		respond.Error(w, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -105,6 +110,9 @@ func (d *Deps) Me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Deps) issueToken(user models.User) (string, error) {
+	if len(d.JWTSecret) < 32 {
+		return "", errors.New("jwt secret not configured")
+	}
 	claims := authClaims{
 		UserID: user.ID,
 		Email:  user.Email,

@@ -39,11 +39,12 @@ func main() {
 	runner := engine.NewRunner(store, broker)
 
 	deps := &handlers.Deps{
-		Store:   store,
-		Broker:  broker,
-		Wallet:  walletSvc,
-		Engine:  runner,
-		BaseURL: envOr("BASE_URL", "http://localhost:8080"),
+		Store:     store,
+		Broker:    broker,
+		Wallet:    walletSvc,
+		Engine:    runner,
+		BaseURL:   envOr("BASE_URL", "http://localhost:8080"),
+		JWTSecret: mustEnv("JWT_SECRET"),
 	}
 
 	r := api.NewRouter(deps)
