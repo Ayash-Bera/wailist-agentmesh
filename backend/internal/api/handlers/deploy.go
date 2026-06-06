@@ -12,12 +12,15 @@ import (
 	"github.com/agentmesh/backend/internal/respond"
 )
 
+const maxFundAmount uint64 = 10_000_000 // 10 ALGO per call
+
 func (d *Deps) Deploy(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ctx := r.Context()
+	userID := ctx.Value(CtxUserID).(string)
 
 	wf, err := d.Store.GetWorkflow(ctx, id)
-	if err != nil {
+	if err != nil || wf.UserID != userID {
 		respond.Error(w, http.StatusNotFound, "workflow not found")
 		return
 	}
@@ -74,7 +77,13 @@ func (d *Deps) AgentBalance(w http.ResponseWriter, r *http.Request) {
 	workflowID := chi.URLParam(r, "id")
 	agentID := chi.URLParam(r, "agentId")
 	ctx := r.Context()
+	userID := ctx.Value(CtxUserID).(string)
 
+	wf, err := d.Store.GetWorkflow(ctx, workflowID)
+	if err != nil || wf.UserID != userID {
+		respond.Error(w, http.StatusNotFound, "wallet not found")
+		return
+	}
 	aw, err := d.Store.GetAgentWallet(ctx, workflowID, agentID)
 	if err != nil {
 		respond.Error(w, http.StatusNotFound, "wallet not found")
@@ -96,6 +105,13 @@ func (d *Deps) FundAgent(w http.ResponseWriter, r *http.Request) {
 	workflowID := chi.URLParam(r, "id")
 	agentID := chi.URLParam(r, "agentId")
 	ctx := r.Context()
+	userID := ctx.Value(CtxUserID).(string)
+
+	wf, err := d.Store.GetWorkflow(ctx, workflowID)
+	if err != nil || wf.UserID != userID {
+		respond.Error(w, http.StatusNotFound, "wallet not found")
+		return
+	}
 
 	var body struct {
 		Amount uint64 `json:"amount"`
@@ -103,6 +119,10 @@ func (d *Deps) FundAgent(w http.ResponseWriter, r *http.Request) {
 	json.NewDecoder(r.Body).Decode(&body)
 	if body.Amount == 0 {
 		body.Amount = 1_000_000
+	}
+	if body.Amount > maxFundAmount {
+		respond.Error(w, http.StatusBadRequest, fmt.Sprintf("amount exceeds maximum of %d microAlgo", maxFundAmount))
+		return
 	}
 
 	aw, err := d.Store.GetAgentWallet(ctx, workflowID, agentID)
