@@ -19,6 +19,29 @@ import (
 	"github.com/agentmesh/backend/internal/models"
 )
 
+// dialAndValidate resolves host, blocks private IPs, then dials the validated address.
+// This runs at actual connect time, preventing DNS rebinding attacks.
+func dialAndValidate(ctx context.Context, network, addr string) (net.Conn, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	ips, err := net.DefaultResolver.LookupIPAddr(ctx, host)
+	if err != nil {
+		return nil, err
+	}
+	if len(ips) == 0 {
+		return nil, fmt.Errorf("no addresses resolved for %s", host)
+	}
+	for _, ia := range ips {
+		if isPrivateIP(ia.IP) {
+			return nil, fmt.Errorf("requests to private/internal addresses are not allowed")
+		}
+	}
+	target := net.JoinHostPort(ips[0].IP.String(), port)
+	return (&net.Dialer{Timeout: httpTimeout}).DialContext(ctx, network, target)
+}
+
 const (
 	httpResponseLimit = 5 << 20 // 5 MiB
 	httpTimeout       = 10 * time.Second
@@ -28,17 +51,27 @@ const (
 // urlValidator can be swapped in tests to allow localhost servers.
 var urlValidator = validateURL
 
-// SetURLValidatorForTest replaces the SSRF validator. Call only from tests. Pass nil to reset.
+// dialFn is the DialContext used by toolHTTPClient. Swappable in tests.
+var dialFn = dialAndValidate
+
+// SetURLValidatorForTest replaces both the URL validator and dialer. Call only from tests. Pass nil to reset.
 func SetURLValidatorForTest(fn func(string) error) {
 	if fn == nil {
 		urlValidator = validateURL
+		dialFn = dialAndValidate
 	} else {
 		urlValidator = fn
+		dialFn = (&net.Dialer{Timeout: httpTimeout}).DialContext
 	}
 }
 
 var toolHTTPClient = &http.Client{
 	Timeout: httpTimeout,
+	Transport: &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialFn(ctx, network, addr)
+		},
+	},
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if err := validateURL(req.URL.String()); err != nil {
 			return err
@@ -98,7 +131,8 @@ func callHTTP(ctx context.Context, node models.WorkflowNode, rc RunContexter) (a
 	return string(b), nil
 }
 
-// validateURL rejects non-http(s) schemes, userinfo, and private/loopback addresses.
+// validateURL rejects non-http(s) schemes and userinfo.
+// IP-level SSRF blocking happens at dial time via dialAndValidate.
 func validateURL(raw string) error {
 	u, err := url.Parse(raw)
 	if err != nil {
@@ -109,21 +143,6 @@ func validateURL(raw string) error {
 	}
 	if u.User != nil {
 		return fmt.Errorf("URL must not contain userinfo")
-	}
-	host := u.Hostname()
-	ips, err := net.LookupHost(host)
-	if err != nil {
-		// If DNS fails, let the request fail naturally
-		return nil
-	}
-	for _, ipStr := range ips {
-		ip := net.ParseIP(ipStr)
-		if ip == nil {
-			continue
-		}
-		if isPrivateIP(ip) {
-			return fmt.Errorf("requests to private/internal addresses are not allowed")
-		}
 	}
 	return nil
 }
