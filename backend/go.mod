@@ -1,6 +1,6 @@
 module github.com/agentmesh/backend
 
-go 1.23.0
+go 1.25.0
 
 require (
 	github.com/algorand/go-algorand-sdk/v2 v2.11.1
