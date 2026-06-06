@@ -314,3 +314,12 @@ func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, 
 	`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
 	return u, err
 }
+
+// --- Waitlist methods ---
+
+func (s *Store) InsertWaitlistEmail(ctx context.Context, email string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING
+	`, email)
+	return err
+}
