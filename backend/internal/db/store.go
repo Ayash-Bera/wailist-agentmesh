@@ -293,3 +293,24 @@ func (s *Store) ListAgentWallets(ctx context.Context, workflowID string) ([]mode
 	}
 	return wallets, rows.Err()
 }
+
+// --- User methods ---
+
+func (s *Store) CreateUser(ctx context.Context, email, passwordHash string) (models.User, error) {
+	var u models.User
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO users (id, email, password_hash)
+		VALUES (gen_random_uuid()::text, $1, $2)
+		RETURNING id, email, password_hash, created_at
+	`, email, passwordHash).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	return u, err
+}
+
+func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+	var u models.User
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, email, password_hash, created_at
+		FROM users WHERE email = $1
+	`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	return u, err
+}
