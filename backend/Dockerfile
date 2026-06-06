@@ -1,5 +1,6 @@
 FROM golang:1.25-alpine AS build
 WORKDIR /app
+ENV GOTOOLCHAIN=auto
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
