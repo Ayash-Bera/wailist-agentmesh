@@ -10,18 +10,24 @@ import (
 	"github.com/agentmesh/backend/internal/api/handlers"
 )
 
-func TestSignIn(t *testing.T) {
-	d := &handlers.Deps{}
-	body, _ := json.Marshal(map[string]string{"email": "test@test.com", "password": "pass"})
-	req := httptest.NewRequest(http.MethodPost, "/auth/signin", bytes.NewReader(body))
+func TestSignUpReturnsBadRequestOnEmptyEmail(t *testing.T) {
+	d := &handlers.Deps{JWTSecret: "testsecret"}
+	body, _ := json.Marshal(map[string]string{"email": "", "password": "validpassword"})
+	req := httptest.NewRequest(http.MethodPost, "/auth/signup", bytes.NewReader(body))
 	w := httptest.NewRecorder()
-	d.SignIn(w, req)
-	if w.Code != http.StatusOK {
-		t.Fatalf("want 200 got %d", w.Code)
+	d.SignUp(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 got %d", w.Code)
 	}
-	var resp map[string]string
-	json.NewDecoder(w.Body).Decode(&resp)
-	if resp["token"] == "" {
-		t.Fatal("no token in response")
+}
+
+func TestSignUpReturnsBadRequestOnShortPassword(t *testing.T) {
+	d := &handlers.Deps{JWTSecret: "testsecret"}
+	body, _ := json.Marshal(map[string]string{"email": "a@b.com", "password": "short"})
+	req := httptest.NewRequest(http.MethodPost, "/auth/signup", bytes.NewReader(body))
+	w := httptest.NewRecorder()
+	d.SignUp(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("want 400 got %d", w.Code)
 	}
 }

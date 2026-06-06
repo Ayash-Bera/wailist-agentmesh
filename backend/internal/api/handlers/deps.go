@@ -12,9 +12,10 @@ type contextKey string
 const CtxUserID contextKey = "userID"
 
 type Deps struct {
-	Store   *db.Store
-	Broker  *sse.Broker
-	Wallet  *wallet.Service
-	Engine  *engine.Runner
-	BaseURL string
+	Store     *db.Store
+	Broker    *sse.Broker
+	Wallet    *wallet.Service
+	Engine    *engine.Runner
+	BaseURL   string
+	JWTSecret string
 }
