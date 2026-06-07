@@ -125,7 +125,10 @@ func (d *Deps) OAuthCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	http.Redirect(w, r, d.FrontendURL+"/auth/callback?token="+url.QueryEscape(token), http.StatusFound)
+	// Token is delivered in the URL fragment, not the query string: fragments are
+	// never sent to the server (no access logs, no Referer leak). The callback page
+	// reads it and immediately clears it from history via replaceState.
+	http.Redirect(w, r, d.FrontendURL+"/auth/callback#token="+url.QueryEscape(token), http.StatusFound)
 }
 
 func (d *Deps) oauthRedirectURI(provider string) string {

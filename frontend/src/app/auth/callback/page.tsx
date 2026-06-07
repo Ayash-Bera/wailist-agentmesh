@@ -2,13 +2,17 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-// Landing point for backend OAuth: the Go server redirects here with ?token=<jwt>.
-// We persist the token the same way email/password login does, then move on.
+// Landing point for backend OAuth: the Go server redirects here with the JWT in
+// the URL fragment (#token=<jwt>). Fragments never reach the server, so the token
+// stays out of access logs and Referer headers. We persist it the same way
+// email/password login does, scrub it from history, then move on.
 export default function AuthCallbackPage() {
   const router = useRouter();
 
   useEffect(() => {
-    const token = new URLSearchParams(window.location.search).get("token");
+    const token = new URLSearchParams(window.location.hash.slice(1)).get("token");
+    // Drop the fragment from the URL/history before navigating away.
+    window.history.replaceState({}, "", window.location.pathname);
     if (token) {
       localStorage.setItem("agentmesh_signed_in", "1");
       localStorage.setItem("agentmesh_token", token);
