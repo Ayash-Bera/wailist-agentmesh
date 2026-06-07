@@ -30,10 +30,11 @@ backend/
 │       └── main.go              ← wire DB, router, SSE broker, start HTTP server
 ├── internal/
 │   ├── api/
-│   │   ├── router.go            ← Chi route registration
-│   │   ├── middleware.go        ← CORS, auth stub, request logger
+│   │   ├── router.go            ← Chi route registration (public/protected split)
+│   │   ├── middleware.go        ← CORS + JWT auth middleware, request logger
 │   │   └── handlers/
-│   │       ├── auth.go          ← stub: signup/signin/signout return dev token
+│   │       ├── auth.go          ← bcrypt signup/signin, HS256 JWT issuance
+│   │       ├── oauth.go         ← GitHub/Google authorization-code flow
 │   │       ├── workflows.go     ← CRUD: list, get, create, update, delete
 │   │       ├── deploy.go        ← provision Algorand wallets, set deployed status
 │   │       ├── runs.go          ← trigger run, get status/logs, SSE stream, stop
@@ -144,16 +145,20 @@ CREATE INDEX ON runs (workflow_id);
 ## 4. API Endpoints (Phase 1)
 
 All routes are prefixed with no version segment for now (`/auth/...`, `/workflows/...`).
-Auth middleware reads `Authorization: Bearer <token>` but in Phase 1 always sets `userID = "dev"` and never rejects.
+Auth middleware validates the HS256 JWT in `Authorization: Bearer <token>` and sets `userID` from the `sub` claim, rejecting missing/invalid tokens with 401. Public routes (auth, OAuth, waitlist, webhook trigger, health) skip the middleware.
 
-### Auth (stubs)
+### Auth
 
 ```
-POST  /auth/signup    body: { email, password, org }   → { token: "dev-token" }
-POST  /auth/signin    body: { email, password }        → { token: "dev-token" }
-POST  /auth/signout                                    → 204
-GET   /auth/me                                         → { id: "dev", email }
+POST  /auth/signup                  body: { email, password, org }  → { token }
+POST  /auth/signin                  body: { email, password }       → { token }
+POST  /auth/signout                                                 → 204
+GET   /auth/me                       (protected)                    → { id }
+GET   /auth/oauth/{provider}         provider = github | google     → 302 to provider
+GET   /auth/oauth/{provider}/callback                               → 302 to {FRONTEND_URL}/auth/callback#token=<jwt>
 ```
+
+Email/password uses bcrypt; OAuth uses the authorization-code flow and requires a verified email. All three issue the same 7-day HS256 JWT.
 
 ### Workflows
 

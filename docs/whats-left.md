@@ -4,6 +4,16 @@ Phase 1 backend is complete and deployed. This document tracks remaining gaps be
 
 ---
 
+## Done since Phase 1
+
+- **Real JWT auth** — `bcrypt` signup/signin, HS256 JWTs (7-day TTL), per-user data isolation. Empty/short secret guarded; DB errors masked; constant-time signin.
+- **GitHub + Google OAuth** — backend authorization-code flow, verified-email required, single-use provider-scoped CSRF state, token delivered via URL fragment. OAuth never silently links to a password account.
+- **JWT middleware** — public/protected route split; protected routes require a valid Bearer token.
+- **Waitlist** — `POST /waitlist` persists to a `waitlist` table; landing-page form wired.
+- **Supabase + Railway** — moved to Supabase transaction pooler (IPv4); pgx simple protocol for PgBouncer compatibility.
+
+---
+
 ## High priority (blocks real usage)
 
 ### 1. Wire LogDrawer to SSE stream
@@ -19,21 +29,7 @@ LogDrawer currently renders hardcoded mock log lines from `data.ts`. It needs to
 
 `api.ts` also needs a `runs.stream(runId)` helper that returns an `EventSource`.
 
-### 2. Real JWT auth
-
-**Files:** `backend/internal/api/handlers/auth.go`, `backend/internal/api/middleware.go`
-
-Phase 1 auth stubs:
-- `POST /auth/signin` and `/auth/signup` always return `"dev-token"` regardless of credentials
-- Middleware accepts any Bearer token and maps every request to `userID = "dev"`
-
-Phase 2 needs:
-- Password hashing (`bcrypt`) on signup, verification on signin
-- Real JWT signing and validation (e.g. `golang-jwt/jwt`)
-- Per-user data isolation (currently all data is owned by `"dev"`)
-- The `users` table already exists in the migration — just needs the handlers wired
-
-### 3. StopWorkflow
+### 2. StopWorkflow
 
 **File:** `backend/internal/api/handlers/runs.go`
 
@@ -46,7 +42,7 @@ Phase 2 needs:
 
 ## Medium priority
 
-### 4. x402 actual payment signing
+### 3. x402 actual payment signing
 
 **File:** `backend/internal/engine/nodes/tool402.go`
 
@@ -57,7 +53,7 @@ Needs:
 - After payment, retry the original request with a `X-Payment` header containing the signed txn
 - Handle payment failure gracefully
 
-### 5. Run replay / history
+### 4. Run replay / history
 
 **File:** `backend/internal/api/router.go`
 
@@ -65,7 +61,7 @@ No endpoint to list past runs for a workflow. Add:
 - `GET /workflows/:id/runs` — list runs with status, timestamps, duration
 - Frontend RunHistory panel (not yet designed)
 
-### 6. Spend caps per workflow
+### 5. Spend caps per workflow
 
 **Files:** `backend/internal/db/migrations/`, `backend/internal/engine/runner.go`
 
@@ -78,24 +74,24 @@ Phase 1 has no spending limits. Phase 2 needs:
 
 ## Low priority / Phase 3
 
-### 7. Cron schedule triggers
+### 6. Cron schedule triggers
 
 Trigger a workflow on a schedule (e.g. every 5 minutes). Needs:
 - `schedule` field on workflow (cron expression)
 - `robfig/cron/v3` wired into main.go
 - Cron job calls `startRun` with `triggeredBy = "cron"`
 
-### 8. Webhook delivery confirmation
+### 7. Webhook delivery confirmation
 
 `PublicTrigger` (`POST /run/:workflowId`) currently fires the run and returns the `runId` immediately. Phase 2 should optionally support synchronous mode — wait for run completion and return the final output.
 
-### 9. Frontend: workflow validation before deploy
+### 8. Frontend: workflow validation before deploy
 
 Before calling `POST /workflows/:id/deploy`, validate that the graph is a valid DAG with at least one trigger node and one agent node. Currently the backend runs migrations on invalid graphs and returns partial results.
 
-### 10. Rate limiting
+### 9. Rate limiting
 
-No rate limiting on any endpoint. Before public launch add per-IP and per-user limits on the run trigger and fund endpoints especially.
+No rate limiting on any endpoint. Before public launch add per-IP and per-user limits on the auth, run trigger, and fund endpoints especially. Auth endpoints in particular should be rate-limited by IP and by email to slow credential stuffing.
 
 ---
 
@@ -103,7 +99,7 @@ No rate limiting on any endpoint. Before public launch add per-IP and per-user l
 
 | Location | Issue |
 |----------|-------|
-| `backend/internal/api/handlers/auth.go` | Phase 1 auth always returns `dev-token` — must be replaced before multi-user launch |
+| `backend/internal/api/handlers/auth.go` | Email/password signup does not verify email ownership. Until it does, OAuth deliberately refuses to link to a password account (`account_exists`), so a user who signed up with a password can't also use social login on the same email without a manual linking flow. The robust fix is a separate `identities` table keyed by `(provider, provider_user_id)`. |
 | `backend/internal/engine/nodes/tool.go` | `evalMath` uses `go/types.Eval` — limited expression support; swap for `github.com/antonmedv/expr` if complex expressions are needed |
 | `frontend/src/components/canvas/LogDrawer.tsx` | Hardcoded mock log lines — not connected to real SSE stream |
 | `backend/internal/api/handlers/runs.go` | `StopWorkflow` is a no-op stub |
