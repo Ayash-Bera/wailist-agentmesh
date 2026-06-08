@@ -186,7 +186,8 @@ func callGemini(ctx context.Context, agent models.WorkflowNode, provider models.
 	if model == "" {
 		model = "gemini-2.5-flash"
 	}
-	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, provider.APIKey)
+	apiURL := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent", model)
+	apiHeaders := map[string]string{"x-goog-api-key": provider.APIKey}
 
 	contents := []map[string]any{
 		{"role": "user", "parts": []map[string]any{{"text": rc.UserInput()}}},
@@ -205,7 +206,7 @@ func callGemini(ctx context.Context, agent models.WorkflowNode, provider models.
 
 	// Agentic loop — keep calling until the model returns text (no function call).
 	for iter := 0; iter < maxToolIterations; iter++ {
-		resp, err := postJSON(ctx, apiURL, nil, payload)
+		resp, err := postJSON(ctx, apiURL, apiHeaders, payload)
 		if err != nil {
 			return "", err
 		}

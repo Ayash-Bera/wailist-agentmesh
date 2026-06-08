@@ -36,6 +36,25 @@ func (d *Deps) startRun(w http.ResponseWriter, r *http.Request, workflowID, trig
 			respond.Error(w, http.StatusNotFound, "workflow not found")
 			return
 		}
+	} else {
+		// Public webhook path: only deployed workflows with an explicit trigger node
+		// can be invoked without authentication. Return 404 on all failures to avoid
+		// leaking whether a workflow ID exists.
+		if wf.Status != models.WorkflowStatusDeployed {
+			respond.Error(w, http.StatusNotFound, "workflow not found")
+			return
+		}
+		hasTrigger := false
+		for _, n := range wf.Nodes {
+			if n.Type == models.NodeTypeTrigger {
+				hasTrigger = true
+				break
+			}
+		}
+		if !hasTrigger {
+			respond.Error(w, http.StatusNotFound, "workflow not found")
+			return
+		}
 	}
 
 	var inputBody any
@@ -48,6 +67,7 @@ func (d *Deps) startRun(w http.ResponseWriter, r *http.Request, workflowID, trig
 		return
 	}
 
+	wf.Nodes = decryptNodes(wf.Nodes, d.EncryptionKey)
 	d.Broker.Create(run.ID)
 	d.Engine.Start(wf, run)
 
