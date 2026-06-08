@@ -3,12 +3,20 @@ package db
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
 	"github.com/agentmesh/backend/internal/models"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrPasswordAccountExists is returned when an OAuth login resolves to an email
+// that already belongs to a password account. We refuse to silently link them,
+// since our password signup does not verify email ownership — auto-linking would
+// allow a pre-registered password account to capture a victim's OAuth identity.
+var ErrPasswordAccountExists = errors.New("password account exists for email")
 
 type Store struct {
 	pool *pgxpool.Pool
@@ -292,4 +300,73 @@ func (s *Store) ListAgentWallets(ctx context.Context, workflowID string) ([]mode
 		wallets = append(wallets, w)
 	}
 	return wallets, rows.Err()
+}
+
+// --- User methods ---
+
+func (s *Store) CreateUser(ctx context.Context, email, passwordHash string) (models.User, error) {
+	var u models.User
+	err := s.pool.QueryRow(ctx, `
+		INSERT INTO users (id, email, password_hash)
+		VALUES (gen_random_uuid()::text, $1, $2)
+		RETURNING id, email, password_hash, created_at
+	`, email, passwordHash).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	return u, err
+}
+
+func (s *Store) GetUserByEmail(ctx context.Context, email string) (models.User, error) {
+	var u models.User
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, email, password_hash, created_at
+		FROM users WHERE email = $1
+	`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	return u, err
+}
+
+// GetOrCreateOAuthUser returns the user for a verified OAuth email, creating an
+// OAuth-only account (empty password_hash, so bcrypt password login always fails)
+// when none exists. Linking to an existing OAuth account by verified email is
+// allowed; linking to a password account returns ErrPasswordAccountExists.
+func (s *Store) GetOrCreateOAuthUser(ctx context.Context, email string) (models.User, error) {
+	var u models.User
+	err := s.pool.QueryRow(ctx, `
+		SELECT id, email, password_hash, created_at FROM users WHERE email = $1
+	`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	if err == nil {
+		if u.PasswordHash != "" {
+			return models.User{}, ErrPasswordAccountExists
+		}
+		return u, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return models.User{}, err
+	}
+
+	// No existing user — create an OAuth-only account.
+	err = s.pool.QueryRow(ctx, `
+		INSERT INTO users (id, email, password_hash)
+		VALUES (gen_random_uuid()::text, $1, '')
+		ON CONFLICT (email) DO NOTHING
+		RETURNING id, email, password_hash, created_at
+	`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		// Lost a race: a row appeared between SELECT and INSERT. Re-fetch and
+		// apply the same password-account guard.
+		err = s.pool.QueryRow(ctx, `
+			SELECT id, email, password_hash, created_at FROM users WHERE email = $1
+		`, email).Scan(&u.ID, &u.Email, &u.PasswordHash, &u.CreatedAt)
+		if err == nil && u.PasswordHash != "" {
+			return models.User{}, ErrPasswordAccountExists
+		}
+	}
+	return u, err
+}
+
+// --- Waitlist methods ---
+
+func (s *Store) InsertWaitlistEmail(ctx context.Context, email string) error {
+	_, err := s.pool.Exec(ctx, `
+		INSERT INTO waitlist (email) VALUES ($1) ON CONFLICT (email) DO NOTHING
+	`, email)
+	return err
 }

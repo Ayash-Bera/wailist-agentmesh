@@ -2,10 +2,29 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
+	"log"
 	"net/http"
+	"strings"
+	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
+
+	"github.com/agentmesh/backend/internal/models"
 	"github.com/agentmesh/backend/internal/respond"
 )
+
+// dummyHash is used in SignIn to keep response time constant even when the email doesn't exist.
+var dummyHash, _ = bcrypt.GenerateFromPassword([]byte("dummy-password-agentmesh"), bcrypt.DefaultCost)
+
+const tokenTTL = 7 * 24 * time.Hour
+
+type authClaims struct {
+	UserID string `json:"sub"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
+}
 
 func (d *Deps) SignUp(w http.ResponseWriter, r *http.Request) {
 	var body struct {
@@ -14,7 +33,40 @@ func (d *Deps) SignUp(w http.ResponseWriter, r *http.Request) {
 		Org      string `json:"org"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	respond.JSON(w, http.StatusOK, map[string]string{"token": "dev-token"})
+
+	body.Email = strings.TrimSpace(strings.ToLower(body.Email))
+	if body.Email == "" || !strings.Contains(body.Email, "@") {
+		respond.Error(w, http.StatusBadRequest, "valid email required")
+		return
+	}
+	if len(body.Password) < 8 {
+		respond.Error(w, http.StatusBadRequest, "password must be at least 8 characters")
+		return
+	}
+
+	hash, err := bcrypt.GenerateFromPassword([]byte(body.Password), bcrypt.DefaultCost)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	user, err := d.Store.CreateUser(r.Context(), body.Email, string(hash))
+	if err != nil {
+		if strings.Contains(err.Error(), "unique") || strings.Contains(err.Error(), "duplicate") {
+			respond.Error(w, http.StatusConflict, "email already registered")
+			return
+		}
+		log.Printf("create user: %v", err)
+		respond.Error(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	token, err := d.issueToken(user)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not issue token")
+		return
+	}
+	respond.JSON(w, http.StatusCreated, map[string]string{"token": token})
 }
 
 func (d *Deps) SignIn(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +75,29 @@ func (d *Deps) SignIn(w http.ResponseWriter, r *http.Request) {
 		Password string `json:"password"`
 	}
 	json.NewDecoder(r.Body).Decode(&body)
-	respond.JSON(w, http.StatusOK, map[string]string{"token": "dev-token"})
+
+	body.Email = strings.TrimSpace(strings.ToLower(body.Email))
+	if body.Email == "" || body.Password == "" {
+		respond.Error(w, http.StatusBadRequest, "email and password required")
+		return
+	}
+
+	user, lookupErr := d.Store.GetUserByEmail(r.Context(), body.Email)
+	hash := []byte(user.PasswordHash)
+	if lookupErr != nil {
+		hash = dummyHash
+	}
+	if bcrypt.CompareHashAndPassword(hash, []byte(body.Password)) != nil || lookupErr != nil {
+		respond.Error(w, http.StatusUnauthorized, "invalid credentials")
+		return
+	}
+
+	token, err := d.issueToken(user)
+	if err != nil {
+		respond.Error(w, http.StatusInternalServerError, "could not issue token")
+		return
+	}
+	respond.JSON(w, http.StatusOK, map[string]string{"token": token})
 }
 
 func (d *Deps) SignOut(w http.ResponseWriter, r *http.Request) {
@@ -31,5 +105,21 @@ func (d *Deps) SignOut(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Deps) Me(w http.ResponseWriter, r *http.Request) {
-	respond.JSON(w, http.StatusOK, map[string]string{"id": "dev", "email": "dev@agentmesh.local"})
+	userID, _ := r.Context().Value(CtxUserID).(string)
+	respond.JSON(w, http.StatusOK, map[string]string{"id": userID})
+}
+
+func (d *Deps) issueToken(user models.User) (string, error) {
+	if len(d.JWTSecret) < 32 {
+		return "", errors.New("jwt secret not configured")
+	}
+	claims := authClaims{
+		UserID: user.ID,
+		Email:  user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenTTL)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+		},
+	}
+	return jwt.NewWithClaims(jwt.SigningMethodHS256, claims).SignedString([]byte(d.JWTSecret))
 }

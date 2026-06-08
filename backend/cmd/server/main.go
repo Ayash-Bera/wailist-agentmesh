@@ -39,11 +39,18 @@ func main() {
 	runner := engine.NewRunner(store, broker)
 
 	deps := &handlers.Deps{
-		Store:   store,
-		Broker:  broker,
-		Wallet:  walletSvc,
-		Engine:  runner,
-		BaseURL: envOr("BASE_URL", "http://localhost:8080"),
+		Store:     store,
+		Broker:    broker,
+		Wallet:    walletSvc,
+		Engine:    runner,
+		BaseURL:   envOr("BASE_URL", "http://localhost:8080"),
+		JWTSecret: mustEnv("JWT_SECRET"),
+
+		FrontendURL:        envOr("FRONTEND_URL", "http://localhost:3000"),
+		GithubClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+		GithubClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 	}
 
 	r := api.NewRouter(deps)
