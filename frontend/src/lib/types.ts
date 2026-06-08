@@ -27,6 +27,7 @@ export interface WorkflowNode {
   method?: string;
   // tool402-specific
   endpoint?: string;
+  description?: string;
   price?: string;
   unit?: string;
   provider?: string;
@@ -50,6 +51,7 @@ export interface Workflow {
   edges: WorkflowEdge[];
   status?: "active" | "paused" | "draft";
   updated?: string;
+  updatedAt?: string;
   agents?: number;
   runs?: number;
   spend?: string;

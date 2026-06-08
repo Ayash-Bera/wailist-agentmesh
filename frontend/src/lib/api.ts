@@ -38,6 +38,15 @@ export const auth = {
     return { token: "mock-jwt-token" };
   },
 
+  me: async (): Promise<{ id: string; email: string }> => {
+    if (BASE) {
+      const res = await fetch(`${BASE}/auth/me`, { headers: authHeaders() });
+      if (!res.ok) throw new Error("unauthorized");
+      return res.json();
+    }
+    return { id: "dev", email: "dev@local" };
+  },
+
   signOut: async (): Promise<void> => {
     if (BASE) {
       await fetch(`${BASE}/auth/signout`, { method: "POST", headers: authHeaders() });
@@ -102,15 +111,17 @@ export const workflows = {
   },
 
   // TODO: POST /workflows/:id/deploy
-  deploy: async (id: string): Promise<{ agentWallets: Record<string, string> }> => {
+  deploy: async (id: string): Promise<{ agents: { nodeId: string; address: string; network: string }[] }> => {
     if (BASE) {
       const res = await fetch(`${BASE}/workflows/${id}/deploy`, {
         method: "POST", headers: authHeaders(),
       });
-      return res.json();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "deploy failed");
+      return data;
     }
     await delay(800);
-    return { agentWallets: {} };
+    return { agents: [] };
   },
 
   // TODO: POST /workflows/:id/run
@@ -137,6 +148,18 @@ export const workflows = {
 
 // -- Agents ---------------------------------------------------------------
 export const agents = {
+  // TODO: GET /workflows/:wfId/agents/:agentId/balance
+  balance: async (wfId: string, agentId: string): Promise<{ address: string; balance: string; network: string }> => {
+    if (BASE) {
+      const res = await fetch(`${BASE}/workflows/${wfId}/agents/${agentId}/balance`, { headers: authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "balance fetch failed");
+      return data;
+    }
+    await delay(300);
+    return { address: "", balance: "0.000000", network: "testnet" };
+  },
+
   // TODO: POST /workflows/:wfId/agents/:agentId/fund
   fund: async (wfId: string, agentId: string, amount: number): Promise<{ txHash: string; balance: string }> => {
     if (BASE) {
@@ -148,6 +171,24 @@ export const agents = {
     }
     await delay(500);
     return { txHash: `0x${Math.random().toString(16).slice(2, 10)}`, balance: amount.toFixed(3) };
+  },
+};
+
+// -- Tools ----------------------------------------------------------------
+export const tools = {
+  x402quote: async (url: string): Promise<{ price?: string; unit?: string; network?: string; recipient?: string; raw?: string }> => {
+    if (BASE) {
+      const res = await fetch(`${BASE}/tools/x402/quote`, {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error ?? "quote failed");
+      return data;
+    }
+    await delay(600);
+    return { price: "0.002", unit: "call", network: "algorand-testnet", recipient: "" };
   },
 };
 
