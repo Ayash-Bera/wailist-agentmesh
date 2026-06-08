@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/agentmesh/backend/internal/models"
 )
@@ -46,27 +47,67 @@ func callWebhook(ctx context.Context, node models.WorkflowNode, rc RunContexter)
 }
 
 func sendEmail(ctx context.Context, node models.WorkflowNode, rc RunContexter) (any, error) {
-	if node.URL == "" {
+	apiKey := node.EmailAPIKey
+	if apiKey == "" {
 		return "email_skipped_no_api_key", nil
 	}
-	payload := map[string]any{
-		"from":    "AgentMesh <noreply@agentmesh.io>",
-		"to":      []string{node.Source},
-		"subject": "AgentMesh workflow result",
-		"text":    rc.Message(),
+	to := node.EmailTo
+	if to == "" {
+		return "email_skipped_no_recipient", nil
 	}
-	body, _ := json.Marshal(payload)
-	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(body))
+	from := node.EmailFrom
+	if from == "" {
+		from = "AgentMesh <onboarding@resend.dev>"
+	}
+	subject := node.EmailSubject
+	if subject == "" {
+		subject = "AgentMesh workflow result"
+	}
+	// Build body: replace {{ result }} with agent output
+	agentOutput := rc.Message()
+	bodyText := node.EmailBody
+	if bodyText == "" {
+		bodyText = "Hi,\n\nHere is your result:\n\n" + agentOutput + "\n\n— AgentMesh"
+	} else {
+		bodyText = replaceVar(bodyText, "result", agentOutput)
+	}
+
+	provider := node.EmailProvider
+	if provider == "" {
+		provider = "resend"
+	}
+
+	switch provider {
+	case "resend":
+		return sendViaResend(ctx, apiKey, from, to, subject, bodyText)
+	default:
+		return sendViaResend(ctx, apiKey, from, to, subject, bodyText)
+	}
+}
+
+func replaceVar(s, key, val string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "{{ "+key+" }}", val), "{{"+key+"}}", val)
+}
+
+func sendViaResend(ctx context.Context, apiKey, from, to, subject, body string) (any, error) {
+	payload := map[string]any{
+		"from":    from,
+		"to":      []string{to},
+		"subject": subject,
+		"text":    body,
+	}
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(b))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+node.URL)
+	req.Header.Set("Authorization", "Bearer "+apiKey)
 	resp, err := toolHTTPClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("Resend API %d: %s", resp.StatusCode, string(b))
+		rb, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("Resend API %d: %s", resp.StatusCode, string(rb))
 	}
 	return "email_sent", nil
 }
