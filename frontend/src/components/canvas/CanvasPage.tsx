@@ -25,6 +25,7 @@ export function CanvasPage({ workflowId }: CanvasPageProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [saveLabel, setSaveLabel] = useState("");
   const [runId, setRunId] = useState<string | null>(null);
+  const [chatPrompt, setChatPrompt] = useState<string | null>(null); // null = closed
   const justLoaded = useRef(true);
 
   useEffect(() => {
@@ -137,6 +138,25 @@ export function CanvasPage({ workflowId }: CanvasPageProps) {
     }
   }, [deployed, workflow, showToast]);
 
+  const hasChatTrigger = useMemo(
+    () => workflow?.nodes.some((n) => n.type === "trigger" && n.template === "chat") ?? false,
+    [workflow]
+  );
+
+  const startRun = useCallback(async (input?: Record<string, unknown>) => {
+    if (!workflow) return;
+    try {
+      const res = await workflowsApi.run(workflow.id, input);
+      setRunId(res.runId);
+      setRunning(true);
+      setLogOpen(true);
+      setChatPrompt(null);
+      showToast(`Run started · ${res.runId.slice(0, 8)}…`);
+    } catch (err: unknown) {
+      showToast(`Run failed · ${err instanceof Error ? err.message : "unknown error"}`);
+    }
+  }, [workflow, showToast]);
+
   const onRun = useCallback(async () => {
     if (!workflow) return;
     if (!deployed) { showToast("Deploy first to run"); return; }
@@ -145,16 +165,12 @@ export function CanvasPage({ workflowId }: CanvasPageProps) {
       setRunning(false);
       return;
     }
-    try {
-      const res = await workflowsApi.run(workflow.id);
-      setRunId(res.runId);
-      setRunning(true);
-      setLogOpen(true);
-      showToast(`Run started · ${res.runId.slice(0, 8)}…`);
-    } catch (err: unknown) {
-      showToast(`Run failed · ${err instanceof Error ? err.message : "unknown error"}`);
+    if (hasChatTrigger) {
+      setChatPrompt(""); // open dialog
+      return;
     }
-  }, [workflow, deployed, running, showToast]);
+    await startRun();
+  }, [workflow, deployed, running, hasChatTrigger, startRun, showToast]);
 
   const totalSpend = (workflow?.nodes.filter((n) => n.type === "agent").reduce((s, n) => s + parseFloat(n.spent ?? "0"), 0) ?? 0).toFixed(3);
 
@@ -217,6 +233,15 @@ export function CanvasPage({ workflowId }: CanvasPageProps) {
       </div>
 
       {toast && <Toast message={toast} />}
+
+      {chatPrompt !== null && (
+        <ChatRunModal
+          value={chatPrompt}
+          onChange={setChatPrompt}
+          onSubmit={(msg) => startRun({ message: msg })}
+          onClose={() => setChatPrompt(null)}
+        />
+      )}
     </div>
   );
 }
@@ -274,6 +299,49 @@ function Stat({ label, value, unit, color }: { label: string; value: string | nu
       <span style={{ fontFamily: "var(--font-sans)", fontSize: 13, fontWeight: 500, color: color ?? "var(--fg)" }}>
         {value}{unit && <span style={{ color: "var(--fg-dim)", fontSize: 10, marginLeft: 3 }}>{unit}</span>}
       </span>
+    </div>
+  );
+}
+
+// ── Chat Run Modal ──────────────────────────────────────────────────────────
+function ChatRunModal({ value, onChange, onSubmit, onClose }: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit: (msg: string) => void;
+  onClose: () => void;
+}) {
+  const submit = () => { if (value.trim()) onSubmit(value.trim()); };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(8,7,12,0.7)", backdropFilter: "blur(4px)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ width: 480, background: "var(--bg-elev-2)", border: "1px solid var(--border-strong)", borderRadius: 12, padding: 24, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 600, color: "var(--fg)" }}>Start run</div>
+            <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-dim)", marginTop: 2 }}>chat trigger · type your message below</div>
+          </div>
+          <button onClick={onClose} style={{ background: "transparent", border: "none", color: "var(--fg-muted)", cursor: "pointer", fontSize: 16, padding: 4 }}>✕</button>
+        </div>
+        <textarea
+          autoFocus
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
+          placeholder="e.g. What's the weather in Tokyo right now?"
+          style={{ width: "100%", minHeight: 100, padding: "10px 12px", background: "var(--bg)", border: "1px solid var(--border)", borderRadius: "var(--r-2)", color: "var(--fg)", fontSize: 13, fontFamily: "var(--font-sans)", resize: "vertical", outline: "none", lineHeight: 1.6, boxSizing: "border-box" }}
+        />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--fg-dim)" }}>⌘ Enter to run</span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={onClose} style={{ ...ghostBtnSm, height: 32 }}>Cancel</button>
+            <button onClick={submit} disabled={!value.trim()}
+              style={{ ...primaryBtnStyle, height: 32, opacity: !value.trim() ? 0.5 : 1 }}>
+              <IconPlay size={10} /> Run workflow
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

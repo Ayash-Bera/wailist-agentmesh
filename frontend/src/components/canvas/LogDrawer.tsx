@@ -134,8 +134,9 @@ export function LogDrawer({ open, onToggle, runId, running, onRunComplete }: Log
     catch { return String(output); }
   };
 
+  const elapsedStr = (elapsed ?? 0).toFixed(1);
   const headerPill = runId
-    ? (done ? `run · ${runId.slice(0, 8)} · ${elapsed?.toFixed(1)}s` : running ? `running · ${elapsed?.toFixed(1)}s` : `run · ${runId.slice(0, 8)}`)
+    ? (done ? `run · ${runId.slice(0, 8)} · ${elapsedStr}s` : running ? `running · ${elapsedStr}s` : `run · ${runId.slice(0, 8)}`)
     : "console";
 
   const pillTone = done ? "ok" : running ? "warm" : "default";
@@ -187,7 +188,7 @@ export function LogDrawer({ open, onToggle, runId, running, onRunComplete }: Log
           ))}
           {done && (
             <div style={{ color: "var(--accent)", paddingTop: 6, fontSize: 10 }}>
-              ✓ run complete · {elapsed?.toFixed(1)}s · {logs.filter(l => l.status === "success").length}/{logs.length} nodes succeeded
+              ✓ run complete · {(elapsed ?? 0).toFixed(1)}s · {logs.filter(l => l.status === "success").length}/{logs.length} nodes succeeded
             </div>
           )}
           <div ref={bottomRef} />

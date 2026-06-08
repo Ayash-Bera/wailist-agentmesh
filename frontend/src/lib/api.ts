@@ -125,10 +125,12 @@ export const workflows = {
   },
 
   // TODO: POST /workflows/:id/run
-  run: async (id: string): Promise<{ runId: string }> => {
+  run: async (id: string, input?: Record<string, unknown>): Promise<{ runId: string }> => {
     if (BASE) {
       const res = await fetch(`${BASE}/workflows/${id}/run`, {
-        method: "POST", headers: authHeaders(),
+        method: "POST",
+        headers: { ...authHeaders(), ...(input ? { "Content-Type": "application/json" } : {}) },
+        body: input ? JSON.stringify(input) : undefined,
       });
       return res.json();
     }
@@ -176,7 +178,10 @@ export const agents = {
 
 // -- Tools ----------------------------------------------------------------
 export const tools = {
-  x402quote: async (url: string): Promise<{ price?: string; unit?: string; network?: string; recipient?: string; raw?: string }> => {
+  x402quote: async (url: string): Promise<{
+    price?: string; unit?: string; network?: string; recipient?: string; raw?: string; description?: string;
+    params?: Array<{ name: string; type: string; required: boolean; description: string; default?: string }>;
+  }> => {
     if (BASE) {
       const res = await fetch(`${BASE}/tools/x402/quote`, {
         method: "POST",
