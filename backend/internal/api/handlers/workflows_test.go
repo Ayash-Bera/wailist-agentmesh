@@ -56,6 +56,7 @@ func TestCreateAndGetWorkflow(t *testing.T) {
 	t.Cleanup(func() { d.Store.DeleteWorkflow(context.Background(), wf.ID) })
 
 	req2 := httptest.NewRequest(http.MethodGet, "/workflows/"+wf.ID, nil)
+	req2 = req2.WithContext(context.WithValue(req2.Context(), handlers.CtxUserID, "dev"))
 	req2 = withURLParam(req2, "id", wf.ID)
 	w2 := httptest.NewRecorder()
 	d.GetWorkflow(w2, req2)
