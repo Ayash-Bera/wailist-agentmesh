@@ -1,99 +1,95 @@
+<div align="center">
+
 # AgentMesh
 
-**Build AI agents that pay for what they use — no API keys, no subscriptions, no middleman.**
+### Give your AI agents a wallet. Let them pay their own way.
 
-AgentMesh is a no-code visual platform where you drag, wire, and run autonomous AI agent workflows. Each agent gets its own Algorand wallet and pays for APIs on the spot using real micropayments. The agent decides when to call a tool, signs an Algorand transaction from its own wallet, and gets the data — all without you managing a single API key.
+AgentMesh is a no-code platform for building autonomous AI agent workflows — where agents don't just think, they act. Each agent gets its own Algorand wallet and pays for the APIs it uses in real time, on-chain, without you touching a single API key.
 
-[**Try it →**](https://www.agent-mesh.app)
+**[→ Try AgentMesh](https://www.agent-mesh.app)**
 
----
-
-## The problem with AI agents today
-
-To give an agent access to an API, you need to:
-- Create an account with the provider
-- Pay for a subscription tier you may not fully use
-- Manage and rotate API keys
-- Hope the rate limit matches your agent's actual usage
-
-Subscriptions are designed for humans. Micropayments are designed for machines.
+</div>
 
 ---
 
-## How AgentMesh works
+## What is this?
 
-**1. Build on the canvas**
-Drag out nodes — a Trigger, an Agent, x402 Tool nodes, an Action. Wire them together. No code.
+Most AI agent platforms make you sign up for every API your agent needs, manage credentials, and pay flat subscriptions whether the agent uses them or not.
 
-**2. Configure your agent**
-Pick an LLM provider (Gemini, OpenAI, Anthropic, Groq, or Mistral). Write a system prompt. Add paid API tools with one click — hit "Discover" and AgentMesh auto-reads the price and parameters straight from the endpoint.
+AgentMesh flips that. Instead of API keys, agents use **money** — tiny Algorand micropayments, settled on-chain in under 5 seconds. Your agent sees a paid API, pays for it from its own wallet, and gets the data back. No accounts. No keys. No subscriptions.
 
-**3. Deploy**
-AgentMesh generates a real Algorand wallet for your agent. Fund it with a small amount of ALGO.
-
-**4. Run**
-Your agent runs autonomously. It calls tools when it needs them, pays per call from its own wallet, and synthesises results. Watch every step live in the streaming log.
+You build the workflow visually. AgentMesh handles everything else.
 
 ---
 
-## The x402 payment protocol
+## How it works
 
-x402 is how agents pay for APIs without human involvement:
+**Build** — Open the canvas. Drag out an Agent, connect some tools, add an action. Wire them together. No code required.
 
-```
-Agent hits an API  →  gets a 402 with price + recipient address
-Agent signs an Algorand transaction from its wallet
-Agent retries with the transaction ID as proof
-API server verifies on-chain  →  returns the data
-```
+**Configure** — Choose your LLM (Gemini, OpenAI, Anthropic, Groq, or Mistral). Write a system prompt. For any paid API tool, just paste the URL and click **Discover** — AgentMesh reads the price and parameters automatically.
 
-The full round-trip takes under 5 seconds. 0.001 ALGO transaction fees (~$0.0002) make even sub-cent API calls viable.
+**Deploy** — Hit deploy. AgentMesh creates a real Algorand wallet for your agent. Add a small amount of ALGO to fund it.
+
+**Run** — Your agent works autonomously. It decides which tools to call, pays for each one from its wallet, and delivers the result. Watch every step stream live in the logs.
+
+---
+
+## The x402 payment flow
+
+When an agent hits a paid API:
+
+1. The API responds with a price and an Algorand wallet address
+2. The agent signs a payment transaction from its own wallet
+3. The agent retries the request with the transaction ID
+4. The API verifies the payment on-chain and returns the data
+
+The whole cycle takes under 5 seconds. Algorand transaction fees are ~$0.0002, which makes per-call pricing viable even at fractions of a cent.
 
 ---
 
 ## Why Algorand
 
-- **Fees**: ~0.001 ALGO per transaction (~$0.0002). Sub-cent API pricing is actually profitable.
-- **Finality**: ~3.5 seconds. Fast enough for synchronous pay-and-retry in a single agent run.
-- **Simplicity**: No smart contracts needed. A basic ALGO transfer is all it takes.
+| | |
+|---|---|
+| **Fees** | ~$0.0002 per transaction — sub-cent API pricing actually works |
+| **Speed** | ~3.5s finality — fast enough for synchronous pay-and-retry |
+| **Simplicity** | No smart contracts needed — a basic payment transfer is all it takes |
 
 ---
 
-## What's working today
+## What's live today
 
-- Visual workflow canvas — drag, drop, wire, configure
-- 5 LLM providers: Gemini, OpenAI, Anthropic, Groq, Mistral (20+ models)
-- Full agentic tool-calling loop — agent decides which tools to call and how many times (up to 15 iterations)
-- x402 paid API tool nodes with one-click parameter discovery
-- Algorand wallet per agent — deploy, fund, check balance in the UI
-- Email action node (send results via email)
-- Live streaming logs — watch every node execute in real time
-- GitHub + Google OAuth and email/password auth
-
----
-
-## Building x402-compatible endpoints
-
-Want to publish a paid API that AgentMesh agents can use? See the [`x402/`](./x402/) folder:
-
-- **[`CONTRIBUTING.md`](./x402/CONTRIBUTING.md)** — the full protocol spec and how to build a compatible endpoint
-- **[`EXAMPLE_SERVER.md`](./x402/EXAMPLE_SERVER.md)** — link to the reference implementation repo
+| Feature | Status |
+|---|---|
+| Visual drag-and-drop canvas | ✅ |
+| 5 LLM providers, 20+ models (Gemini, OpenAI, Anthropic, Groq, Mistral) | ✅ |
+| Agentic tool-calling loop (up to 15 iterations per run) | ✅ |
+| x402 paid API tool nodes with one-click discovery | ✅ |
+| Algorand wallet per agent — deploy, fund, check balance | ✅ |
+| Live streaming run logs | ✅ |
+| Email action node | ✅ |
+| GitHub + Google OAuth, email/password auth | ✅ |
 
 ---
 
-## Roadmap
+## What's coming
 
-- Standard HTTP tool node (non-x402 APIs)
-- Anthropic function-calling loop
-- Webhook + schedule triggers
-- Run history and log browser
-- Memory nodes (conversation memory, vector store / RAG)
-- Agent-to-agent calls — a deployed workflow callable as an x402 tool by another agent
-- x402 endpoint marketplace — browse and one-click add paid APIs
-- On-chain run receipts on Algorand
+- **Standard HTTP tools** — call any API, not just x402 ones
+- **Webhook + schedule triggers** — run agents on a timer or HTTP event
+- **Memory nodes** — agents that remember across runs
+- **Run history** — browse and replay past runs
+- **Agent-to-agent calls** — deploy a workflow as an x402 endpoint, let other agents call and pay it
+- **x402 marketplace** — browse published paid APIs, add to canvas in one click
+- **On-chain run receipts** — immutable audit trail anchored on Algorand
 
 ---
 
-## Contributing / local dev
+## Build your own x402 API
 
-See [`backend/`](./backend/) and [`frontend/`](./frontend/) for setup instructions. The backend is Go + PostgreSQL; the frontend is Next.js 16 with a custom SVG canvas.
+Want to publish a paid API that AgentMesh agents can discover and pay for? See the [`x402/`](./x402/) folder — it has the full protocol spec and a working example to fork.
+
+---
+
+## Contributing
+
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) to get started.
