@@ -32,7 +32,8 @@ interface LogDrawerProps {
   onRunComplete: () => void;
 }
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+const _CONFIGURED = process.env.NEXT_PUBLIC_API_URL ?? "";
+const BASE = _CONFIGURED && typeof window !== "undefined" ? "/api" : _CONFIGURED;
 
 export function LogDrawer({ open, onToggle, runId, running, onRunComplete }: LogDrawerProps) {
   const [logs, setLogs] = useState<LogEvent[]>([]);
